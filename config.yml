@@ -1,0 +1,18 @@
+repositories:
+  gco:
+    project: /home/rmaia/Documentos/Projetos/infra/code/git-envbuilder
+    scripts:
+      - composer install
+    branches:
+      develop:
+        pattern: ^develop$
+        path: /var/www/develop
+      feature: 
+        pattern: ^feature/(.*?)$
+        path: /var/www/feature
+      bugfix: 
+        pattern: ^bugfix/(.*?)$
+        path: /var/www/bugfix
+      hotfix:
+        pattern: ^hotfix/(.*?)$
+        path: /var/www/hotfix
