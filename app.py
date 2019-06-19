@@ -8,6 +8,7 @@ import subprocess
 import io
 import re
 import pprint
+import arrow
 
 from pathlib import Path
 from tqdm import tqdm
@@ -32,7 +33,9 @@ class GitEnvBuilder:
 
     def __init__(self, config):
         
+        self._report = {}
         self._branches_deployed = set()
+
         for repo, repo_info in config['repositories'].items():
             
             os.makedirs(repo_info['base_project_path'], exist_ok=True)
@@ -46,16 +49,10 @@ class GitEnvBuilder:
             self._setup(self._normalize(remote_branches), repo_info['branches'])
 
     def sync(self):
-        
-        print('REMOTE BRANCHES:')
-        pprint.pprint(self._branches_deployed)
-        print('')
-
         for repo, repo_info in config['repositories'].items():
+
+            self._report.setdefault(repo, {})
             for branch, branch_info in repo_info['branches'].items():
-                
-                print('BRANCH: ' + branch)
-                pprint.pprint(branch_info)
 
                 for remote_branch_info in branch_info['remote_branches']:
                 
@@ -67,23 +64,27 @@ class GitEnvBuilder:
 
                     full_path = (branch_info['path'] + '/' + branch_path).rstrip('/')
                     self._branches_deployed.add(full_path)
-                    print(full_path)
+
+                    self._report[repo][full_path] = 'Sync with remote branch "{}".'.format(remote_branch_info['name'])
 
                     os.makedirs(full_path, exist_ok=True)
                     
-                    print('REMOTE BRANCH NAME:', remote_branch_info['name'])
-
                     if not self._is_repo(full_path):
-                        print('NOT IN GIT')
                         self._clone(repo_info['repo_url'], remote_branch_info['name'], full_path)
                     
                     self._pull(full_path)
                     if 'scripts' in branch_info:
                         self._execute_scripts(full_path, branch_info['scripts'])
                     
-                print('')
-        
-                self._clean_deleted_branches(branch_info['path'])
+                self._clean_deleted_branches(repo, branch_info['path'])
+
+        self._print_report()
+
+    def _print_report(self):
+        for repo, branches in self._report.items():
+            print('[' + str(arrow.now('America/Sao_Paulo')) + ']', repo.upper(), ':')
+            for branch_path, branch_msg in branches.items():
+                print('   ', branch_path, '->', branch_msg)
 
     def _get_remote_branches(self, local_path):
         return io.BytesIO(
@@ -144,15 +145,9 @@ class GitEnvBuilder:
                         'name': remote_branch
                     })
 
-    def _clean_deleted_branches(self, local_path):
-        print(self._branches_deployed)
-        if self._is_repo(local_path):
-            print(local_path, '==>', local_path in self._branches_deployed)
-        else:
+    def _clean_deleted_branches(self, repo_name, local_path):
+        if not self._is_repo(local_path):
             for f in Path(local_path).glob('*'):
-                print(f, '==>', str(f) in self._branches_deployed)
-
                 if str(f) not in self._branches_deployed:
-                    # FOLDER TO BE DELETED
+                    self._report[repo_name][str(f)] = 'REMOVED! This branch is no more available on remote repository.'
                     shutil.rmtree(f)
-        print('')
