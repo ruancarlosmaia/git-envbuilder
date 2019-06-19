@@ -43,6 +43,7 @@ class GitEnvBuilder:
                 self._clone(repo_info['repo_url'], 'master', repo_info['base_project_path'])
                 if 'scripts' in  repo_info:
                     self._execute_scripts(repo_info['base_project_path'], repo_info['scripts'])
+            
             self._fetch_all(repo_info['base_project_path'])
 
             remote_branches = self._get_remote_branches(repo_info['base_project_path'])
@@ -54,27 +55,27 @@ class GitEnvBuilder:
             self._report.setdefault(repo, {})
             for branch, branch_info in repo_info['branches'].items():
 
-                for remote_branch_info in branch_info['remote_branches']:
-                
-                    holder_path = Path(branch_info['path']).name
-                    branch_path = remote_branch_info['path']
-
-                    if holder_path == branch_path:
-                        branch_path = ''
-
-                    full_path = (branch_info['path'] + '/' + branch_path).rstrip('/')
-                    self._branches_deployed.add(full_path)
-
-                    self._report[repo][full_path] = 'Sync with remote branch "{}".'.format(remote_branch_info['name'])
-
-                    os.makedirs(full_path, exist_ok=True)
+                if 'remote_branches' in branch_info:
+                    for remote_branch_info in branch_info['remote_branches']:
                     
-                    if not self._is_repo(full_path):
-                        self._clone(repo_info['repo_url'], remote_branch_info['name'], full_path)
-                    
-                    self._pull(full_path)
-                    if 'scripts' in branch_info:
-                        self._execute_scripts(full_path, branch_info['scripts'])
+                        holder_path = Path(branch_info['path']).name
+                        branch_path = remote_branch_info['path']
+
+                        if holder_path == branch_path:
+                            branch_path = ''
+
+                        full_path = (branch_info['path'] + '/' + branch_path).rstrip('/')
+                        self._branches_deployed.add(full_path)
+
+                        self._report[repo][full_path] = 'Sync with remote branch "{}".'.format(remote_branch_info['name'])
+                        os.makedirs(full_path, exist_ok=True)
+                        
+                        if not self._is_repo(full_path):
+                            self._clone(repo_info['repo_url'], remote_branch_info['name'], full_path)
+                        
+                        self._pull(full_path)
+                        if 'scripts' in branch_info:
+                            self._execute_scripts(full_path, branch_info['scripts'])
                     
                 self._clean_deleted_branches(repo, branch_info['path'])
 
@@ -89,7 +90,7 @@ class GitEnvBuilder:
     def _get_remote_branches(self, local_path):
         return io.BytesIO(
             subprocess.check_output(
-                'git branch -a', cwd=local_path, shell=True
+                'git ls-remote --heads -q', cwd=local_path, shell=True
             )
         )
 
@@ -125,7 +126,7 @@ class GitEnvBuilder:
 
     def _normalize(self, remote_branches):
         branches = set()
-        clear_regex = re.compile('(\*|\s|\n|remotes/origin/)')
+        clear_regex = re.compile('(\*|\s|\n|\t|.*?/heads/)')
         for remote_branch in remote_branches:
             cleaned_remote_branch_name = clear_regex.sub('', remote_branch.decode())
             branches.add(cleaned_remote_branch_name)
@@ -146,7 +147,11 @@ class GitEnvBuilder:
                     })
 
     def _clean_deleted_branches(self, repo_name, local_path):
-        if not self._is_repo(local_path):
+        if self._is_repo(local_path):
+            if local_path not in self._branches_deployed:
+                self._report[repo_name][local_path] = 'REMOVED! This branch is no more available on remote repository.'
+                shutil.rmtree(local_path)
+        else:
             for f in Path(local_path).glob('*'):
                 if str(f) not in self._branches_deployed:
                     self._report[repo_name][str(f)] = 'REMOVED! This branch is no more available on remote repository.'
