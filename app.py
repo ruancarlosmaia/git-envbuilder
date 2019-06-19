@@ -33,22 +33,16 @@ class GitEnvBuilder:
     def __init__(self, config):
         
         self._branches_deployed = set()
-
         for repo, repo_info in config['repositories'].items():
             
-            subprocess.run(
-                'git fetch --all', 
-                cwd=repo_info['install_project_path'], shell=True, check=False, 
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
+            os.makedirs(repo_info['base_project_path'], exist_ok=True)
+            if not self._is_repo(repo_info['base_project_path']):
+                self._clone(repo_info['repo_url'], 'master', repo_info['base_project_path'])
+                if 'scripts' in  repo_info:
+                    self._execute_scripts(repo_info['base_project_path'], repo_info['scripts'])
+            self._fetch_all(repo_info['base_project_path'])
 
-            remote_branches = io.BytesIO(
-                subprocess.check_output(
-                    'git branch -a', 
-                    cwd=repo_info['install_project_path'], shell=True
-                )
-            )
-
+            remote_branches = self._get_remote_branches(repo_info['base_project_path'])
             self._setup(self._normalize(remote_branches), repo_info['branches'])
 
     def sync(self):
@@ -71,62 +65,94 @@ class GitEnvBuilder:
                     if holder_path == branch_path:
                         branch_path = ''
 
-                    full_path = branch_info['path'] + '/' + branch_path
-                    self._branches_deployed.add(full_path.rstrip('/'))
-                    print(full_path.rstrip('/'))
+                    full_path = (branch_info['path'] + '/' + branch_path).rstrip('/')
+                    self._branches_deployed.add(full_path)
+                    print(full_path)
 
-                    os.makedirs(full_path.rstrip('/'), exist_ok=True)
+                    os.makedirs(full_path, exist_ok=True)
                     
                     print('REMOTE BRANCH NAME:', remote_branch_info['name'])
-                    # local_paths = set(Path(branch_info['path']).glob('*'))
-                    # for f in Path(branch_info['path']).glob('*'):
-                    #     print('local path: ', f.name)
-                    #     print('branch name: ', f.parent)
-                    #     print(f.name in self._branches_deployed)
-                    # print(Path(branch_info['path']).glob('*'))
+
+                    if not self._is_repo(full_path):
+                        print('NOT IN GIT')
+                        self._clone(repo_info['repo_url'], remote_branch_info['name'], full_path)
+                    
+                    self._pull(full_path)
+                    if 'scripts' in branch_info:
+                        self._execute_scripts(full_path, branch_info['scripts'])
+                    
                 print('')
         
                 self._clean_deleted_branches(branch_info['path'])
 
+    def _get_remote_branches(self, local_path):
+        return io.BytesIO(
+            subprocess.check_output(
+                'git branch -a', cwd=local_path, shell=True
+            )
+        )
 
-    def _clean_deleted_branches(self, local_path):
-        print(self._branches_deployed)
-        for f in Path(local_path).glob('*'):
-            print(f, '==>', str(f) in self._branches_deployed)
+    def _execute_scripts(self, local_path, scripts):
+        for script in scripts:
+            subprocess.run(
+                script, cwd=local_path, shell=True, check=False,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
 
-            if str(f) not in self._branches_deployed:
-                # FOLDER TO BE DELETED
-                shutil.rmtree(f)
+    def _fetch_all(self, local_path):
+        subprocess.run(
+            'git fetch --all', 
+            cwd=local_path, shell=True, check=False, 
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
 
-        print('')
+    def _pull(self, local_path):
+        subprocess.run(
+            'git pull', cwd=local_path, shell=True, check=False,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+
+    def _clone(self, url, branch, local_path):
+        subprocess.run(
+            'git clone {} -b {} .'.format(url, branch),
+            cwd=local_path, shell=True, check=False,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+
+    def _is_repo(self, local_path):
+        return Path(local_path + '/.git').exists()
 
     def _normalize(self, remote_branches):
-        
         branches = set()
         clear_regex = re.compile('(\*|\s|\n|remotes/origin/)')
-
         for remote_branch in remote_branches:
             cleaned_remote_branch_name = clear_regex.sub('', remote_branch.decode())
             branches.add(cleaned_remote_branch_name)
-
         return branches
 
     def _setup(self, remote_branches, branches_config):
-        
         for remote_branch in remote_branches:
-            
             for branch, info in branches_config.items():
-                
                 matched_value = re.match(info['pattern'], remote_branch)
-
                 if matched_value is not None:
-                    
                     path = matched_value.group(0)
                     if len(matched_value.groups()) > 0:
                         path = matched_value.group(1)
-
                     info.setdefault('remote_branches', [])
                     info['remote_branches'].append({
                         'path': path,
                         'name': remote_branch
                     })
+
+    def _clean_deleted_branches(self, local_path):
+        print(self._branches_deployed)
+        if self._is_repo(local_path):
+            print(local_path, '==>', local_path in self._branches_deployed)
+        else:
+            for f in Path(local_path).glob('*'):
+                print(f, '==>', str(f) in self._branches_deployed)
+
+                if str(f) not in self._branches_deployed:
+                    # FOLDER TO BE DELETED
+                    shutil.rmtree(f)
+        print('')

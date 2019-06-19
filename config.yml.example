@@ -1,0 +1,25 @@
+repositories:
+  gco:
+    repo_url: https://github.com/ruancarlosmaia/git-envbuilder.git
+    base_project_path: /app/gco
+    branches:
+      develop:
+        pattern: ^develop$
+        path: /var/www/gco/develop
+        scripts:
+          - composer install
+      feature: 
+        pattern: ^feature/(.*?)$
+        path: /var/www/gco/feature
+        scripts:
+          - composer install
+      bugfix: 
+        pattern: ^bugfix/(.*?)$
+        path: /var/www/gco/bugfix
+        scripts:
+          - composer install
+      hotfix:
+        pattern: ^hotfix/(.*?)$
+        path: /var/www/gco/hotfix
+        scripts:
+          - composer install
