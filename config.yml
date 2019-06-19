@@ -1,6 +1,7 @@
 repositories:
   gco:
-    project: /home/rmaia/Documentos/Projetos/infra/code/git-envbuilder
+    repo_url: https://github.com/ruancarlosmaia/git-envbuilder.git
+    install_project_path: /home/rmaia/Documentos/Projetos/infra/code/git-envbuilder
     scripts:
       - composer install
     branches:
