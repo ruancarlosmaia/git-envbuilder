@@ -26,15 +26,18 @@ def cli(): pass
 
 @cli.command('sync')
 def sync():
-    gitEnvBuilder = GitEnvBuilder(config)
+    gitEnvBuilder = GitEnvBuilder(
+        config, config['debug'] if 'debug' in config else False
+    )
     gitEnvBuilder.sync()
 
 class GitEnvBuilder:
 
-    def __init__(self, config):
+    def __init__(self, config, debug=False):
         
         self._report = {}
         self._branches_deployed = set()
+        self._debug = debug
 
         for repo, repo_info in config['repositories'].items():
             
@@ -95,31 +98,65 @@ class GitEnvBuilder:
         )
 
     def _execute_scripts(self, local_path, scripts):
+        
+        params = {
+            'cwd': local_path, 
+            'check': False,
+            'shell': True,
+            'stdout': subprocess.DEVNULL, 
+            'stderr': subprocess.DEVNULL
+        }
+
+        if self._debug:
+            params = {'cwd': local_path, 'check': False, 'shell': True}
+
         for script in scripts:
-            subprocess.run(
-                script, cwd=local_path, shell=True, check=False,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
+            subprocess.run(script, **params)
 
     def _fetch_all(self, local_path):
-        subprocess.run(
-            'git fetch --all', 
-            cwd=local_path, shell=True, check=False, 
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
+        
+        params = {
+            'cwd': local_path, 
+            'check': False,
+            'shell': True,
+            'stdout': subprocess.DEVNULL, 
+            'stderr': subprocess.DEVNULL
+        }
+
+        if self._debug:
+            params = {'cwd': local_path, 'check': False, 'shell': True}
+        
+        subprocess.run('git fetch --all', **params)
 
     def _pull(self, local_path):
-        subprocess.run(
-            'git pull', cwd=local_path, shell=True, check=False,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
+        
+        params = {
+            'cwd': local_path, 
+            'check': False,
+            'shell': True,
+            'stdout': subprocess.DEVNULL, 
+            'stderr': subprocess.DEVNULL
+        }
+
+        if self._debug:
+            params = {'cwd': local_path, 'check': False, 'shell': True}
+
+        subprocess.run('git pull', **params)
 
     def _clone(self, url, branch, local_path):
-        subprocess.run(
-            'git clone {} -b {} .'.format(url, branch),
-            cwd=local_path, shell=True, check=False,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
+        
+        params = {
+            'cwd': local_path, 
+            'check': False,
+            'shell': True,
+            'stdout': subprocess.DEVNULL, 
+            'stderr': subprocess.DEVNULL
+        }
+
+        if self._debug:
+            params = {'cwd': local_path, 'check': False, 'shell': True}
+
+        subprocess.run('git clone {} -b {} .'.format(url, branch), **params)
 
     def _is_repo(self, local_path):
         return Path(local_path + '/.git').exists()
