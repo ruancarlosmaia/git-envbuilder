@@ -60,7 +60,7 @@ class GitEnvBuilder:
 
                 if 'remote_branches' in branch_info:
                     for remote_branch_info in branch_info['remote_branches']:
-                    
+
                         holder_path = Path(branch_info['path']).name
                         branch_path = remote_branch_info['path']
 
@@ -70,6 +70,13 @@ class GitEnvBuilder:
                         full_path = (branch_info['path'] + '/' + branch_path).rstrip('/')
                         self._branches_deployed.add(full_path)
 
+                        variables = {
+                            '$__REMOTE_BRANCH_PATH__'   : remote_branch_info['path'],
+                            '$__REMOTE_BRANCH_NAME__'   : remote_branch_info['name'],
+                            '$__PROJECT_FULLPATH__'     : full_path,
+                            '$__BRANCH_CONFIG_NAME__'   : branch
+                        }
+
                         self._report[repo][full_path] = 'Sync with remote branch "{}".'.format(remote_branch_info['name'])
                         os.makedirs(full_path, exist_ok=True)
                         
@@ -78,7 +85,7 @@ class GitEnvBuilder:
                         
                         self._pull(full_path)
                         if 'scripts' in branch_info:
-                            self._execute_scripts(full_path, branch_info['scripts'])
+                            self._execute_scripts(full_path, branch_info['scripts'], variables)
                     
                 self._clean_deleted_branches(repo, branch_info['path'])
 
@@ -97,13 +104,13 @@ class GitEnvBuilder:
             )
         )
 
-    def _execute_scripts(self, local_path, scripts):
+    def _execute_scripts(self, local_path, scripts, variables={}):
         
         params = {
-            'cwd': local_path, 
+            'cwd': local_path,
             'check': False,
             'shell': True,
-            'stdout': subprocess.DEVNULL, 
+            'stdout': subprocess.DEVNULL,
             'stderr': subprocess.DEVNULL
         }
 
@@ -111,6 +118,8 @@ class GitEnvBuilder:
             params = {'cwd': local_path, 'check': False, 'shell': True}
 
         for script in scripts:
+            for key, value in variables.items():
+                script = script.replace(key, value)
             subprocess.run(script, **params)
 
     def _fetch_all(self, local_path):
