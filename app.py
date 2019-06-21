@@ -201,4 +201,4 @@ class GitEnvBuilder:
             for f in Path(local_path).glob('*'):
                 if str(f) not in self._branches_deployed:
                     self._report[repo_name][str(f)] = 'REMOVED! This branch is no more available on remote repository.'
-                    shutil.rmtree(f)
+                    shutil.rmtree(str(f))
