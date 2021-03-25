@@ -7,6 +7,6 @@ monotonic==1.5
 pkg-resources==0.0.0
 pony==0.7.10
 python-dateutil==2.8.0
-PyYAML==5.1.1
+PyYAML==5.4
 six==1.12.0
 tqdm==4.32.1
